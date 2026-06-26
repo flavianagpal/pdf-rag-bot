@@ -4,8 +4,10 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from config import EMBEDDING_MODEL_NAME, FAISS_INDEX_PATH, CHUNKS_PATH
 
-# Load embedding model once
 embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+
+SIMILARITY_THRESHOLD = 0.6
+
 
 def load_index_and_chunks():
     index = faiss.read_index(FAISS_INDEX_PATH)
@@ -15,11 +17,22 @@ def load_index_and_chunks():
 
     return index, chunks
 
-def retrieve_chunks(question, index, chunks, k=3):
+
+def retrieve_chunks(question, index, chunks, k=5):
     question_embedding = embedding_model.encode([question])
     question_embedding = np.array(question_embedding).astype("float32")
 
-    distances, indices = index.search(question_embedding, k)
+    faiss.normalize_L2(question_embedding)
 
-    retrieved = [chunks[i] for i in indices[0]]
+    similarities, indices = index.search(question_embedding, k)
+
+    retrieved = []
+
+    for similarity, i in zip(similarities[0], indices[0]):
+        if (
+            0 <= i < len(chunks)
+            and similarity >= SIMILARITY_THRESHOLD
+        ):
+            retrieved.append(chunks[i])
+
     return retrieved

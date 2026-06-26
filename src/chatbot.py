@@ -1,11 +1,11 @@
-from google import genai
-from config import GEMINI_API_KEY, GEMINI_MODEL_NAME
+from groq import Groq
+from config import GROQ_API_KEY, GROQ_MODEL_NAME
 from retriever import load_index_and_chunks, retrieve_chunks
 
 # ------------------
-# Step 1: Configure Gemini
+# Step 1: Configure Groq
 # ------------------
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = Groq(api_key=GROQ_API_KEY)
 
 # ------------------
 # Step 2: Load FAISS + chunks
@@ -18,20 +18,30 @@ print("FAISS index and chunks loaded successfully!")
 # ------------------
 chat_history = []
 
+
 def format_chat_history(chat_history):
     if not chat_history:
         return "No previous conversation."
 
     history_text = ""
+
     for turn in chat_history:
         history_text += f"User: {turn['question']}\n"
         history_text += f"Assistant: {turn['answer']}\n\n"
 
     return history_text.strip()
 
+
 def build_prompt(question, retrieved_chunks, chat_history):
-    context = "\n\n".join(retrieved_chunks)
     history_text = format_chat_history(chat_history)
+
+    if not retrieved_chunks:
+        context = "No relevant context found."
+    else:
+        context = "\n\n".join(
+            f"[Source: {chunk['source']}, Page {chunk['page']}]\n{chunk['text']}"
+            for chunk in retrieved_chunks
+        )
 
     prompt = f"""
 You are a helpful conversational assistant answering questions about a PDF document.
@@ -47,19 +57,34 @@ Current user question:
 
 Instructions:
 - Answer clearly and simply.
-- Use the document context to answer.
+- Use only the document context to answer.
 - Use the previous conversation when the user refers to earlier topics using words like "it", "that", "they", or "previous one".
-- If the answer is not in the document context, say: "I could not find that in the document."
+- If the answer is not present in the document context, say: "I could not find that in the document."
+- If page information is available, mention the page number in your answer.
 - Keep the answer grounded in the document.
 """
+
     return prompt
 
+
 def generate_answer(prompt):
-    response = client.models.generate_content(
-        model=GEMINI_MODEL_NAME,
-        contents=prompt
-    )
-    return response.text
+    try:
+        response = client.chat.completions.create(
+            model=GROQ_MODEL_NAME,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.2
+        )
+
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        return f"Error while generating answer from Groq: {e}"
+
 
 # ------------------
 # Step 4: Chat loop
@@ -74,12 +99,19 @@ while True:
         print("Goodbye!")
         break
 
-    retrieved_chunks = retrieve_chunks(question, index, chunks, k=3)
+    retrieved_chunks = retrieve_chunks(question, index, chunks)
+
+    if not retrieved_chunks:
+        print("\nBot: I could not find relevant information in the document.")
+        print("\n" + "=" * 100 + "\n")
+        continue
+
     prompt = build_prompt(question, retrieved_chunks, chat_history)
+
     answer = generate_answer(prompt)
 
     print("\nBot:", answer)
-    print("\n" + "="*100 + "\n")
+    print("\n" + "=" * 100 + "\n")
 
     chat_history.append({
         "question": question,

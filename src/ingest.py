@@ -17,51 +17,78 @@ from config import (
 # ------------------
 PDF_PATH = "data/isl.pdf"
 
+if not os.path.exists(PDF_PATH):
+    raise FileNotFoundError(f"PDF file not found at: {PDF_PATH}")
+
 reader = PdfReader(PDF_PATH)
 
-all_text = ""
-
-for page in reader.pages:
-    text = page.extract_text()
-    if text:
-        all_text += text + "\n"
-
-print(f"Total characters extracted: {len(all_text)}")
-
-# ------------------
-# Step 2: Chunking
-# ------------------
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=1000,
     chunk_overlap=200
 )
 
-chunks = splitter.split_text(all_text)
+chunks = []
+total_characters = 0
 
+for page_number, page in enumerate(reader.pages, start=1):
+    text = page.extract_text()
+
+    if not text or not text.strip():
+        continue
+
+    total_characters += len(text)
+
+    page_chunks = splitter.split_text(text)
+
+    for chunk in page_chunks:
+        chunks.append({
+            "text": chunk,
+            "page": page_number,
+            "source": os.path.basename(PDF_PATH)
+        })
+
+if not chunks:
+    raise ValueError(
+        "No chunks were created from the PDF. The PDF may be empty, scanned, or non-text-based."
+    )
+
+print(f"Total characters extracted: {total_characters}")
 print(f"Total chunks created: {len(chunks)}")
 
 # ------------------
-# Step 3: Embeddings
+# Step 2: Embeddings
 # ------------------
 print("Loading embedding model...")
 model = SentenceTransformer(EMBEDDING_MODEL_NAME)
 
 print("Creating chunk embeddings...")
-chunk_embeddings = model.encode(chunks, show_progress_bar=True)
+
+chunk_texts = [chunk["text"] for chunk in chunks]
+
+chunk_embeddings = model.encode(
+    chunk_texts,
+    show_progress_bar=True
+)
 
 chunk_embeddings = np.array(chunk_embeddings).astype("float32")
 
+if len(chunk_embeddings) == 0:
+    raise ValueError("No embeddings were created from the chunks.")
+
+faiss.normalize_L2(chunk_embeddings)
+
 # ------------------
-# Step 4: Build FAISS index
+# Step 3: Build FAISS index
 # ------------------
 dimension = chunk_embeddings.shape[1]
-index = faiss.IndexFlatL2(dimension)
+
+index = faiss.IndexFlatIP(dimension)
 index.add(chunk_embeddings)
 
 print("FAISS index built successfully!")
 
 # ------------------
-# Step 5: Save index + chunks
+# Step 4: Save index + chunks
 # ------------------
 os.makedirs("storage", exist_ok=True)
 
