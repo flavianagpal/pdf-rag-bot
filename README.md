@@ -1,55 +1,250 @@
-PDF RAG Bot with Conversational Memory
+# 📄 Conversational PDF RAG Bot
 
-A conversational PDF RAG (Retrieval-Augmented Generation) chatbot built in Python.
-This project takes a PDF document, chunks it with overlap, converts chunks into embeddings, stores them in a FAISS vector index, and uses Gemini to answer user questions grounded in the document.
+A conversational **Retrieval-Augmented Generation (RAG)** chatbot built using **Python**, **FAISS**, **Sentence Transformers**, and **Google Gemini**. The chatbot answers questions grounded in the contents of a PDF by retrieving the most relevant document chunks before generating a response.
 
-It also supports multi-turn conversation, so follow-up questions like “How is it different?” or “Explain that in simple words” work using chat history + retrieval.
+---
 
-Features
-PDF text extraction using pypdf
-Chunking with overlap using RecursiveCharacterTextSplitter
-Semantic embeddings using sentence-transformers
-Vector search with FAISS
-Grounded answer generation using Gemini
-Conversational memory for follow-up questions
-Clean modular structure with separate ingestion, retrieval, and chat logic
-Project Architecture
-1. Ingestion Pipeline
+## 🚀 Features
 
-The ingestion step processes the PDF and creates the knowledge base.
+* 📖 Extracts text from PDF documents
+* ✂️ Splits text into overlapping chunks for better context preservation
+* 🧠 Generates semantic embeddings using Sentence Transformers
+* 🔍 Performs fast semantic search with FAISS
+* 🤖 Generates grounded responses using Google Gemini
+* 💬 Supports conversational follow-up questions using chat history
+* 📦 Modular project structure for ingestion, retrieval, and chat
 
-PDF
-→ extract text
-→ chunk with overlap
-→ generate embeddings
-→ store embeddings in FAISS
-→ save chunks separately
-2. Retrieval Pipeline
+---
 
-At query time, the user question is embedded and compared against stored chunk embeddings.
+## 🏗️ Architecture
 
-User Question
-→ question embedding
-→ FAISS similarity search
-→ top relevant chunks
-3. Generation Pipeline
+```
+                PDF Document
+                      │
+                      ▼
+             Text Extraction (PyPDF)
+                      │
+                      ▼
+      Recursive Character Chunking
+      (Chunk Size = 1000, Overlap = 200)
+                      │
+                      ▼
+     Sentence Transformer Embeddings
+      (all-MiniLM-L6-v2)
+                      │
+                      ▼
+          FAISS Vector Index
+                      │
+        ─────────────────────────
+                      │
+               User Question
+                      │
+                      ▼
+          Question Embedding
+                      │
+                      ▼
+            Semantic Search
+              (Top-k Chunks)
+                      │
+                      ▼
+     Retrieved Context + Chat History
+                      │
+                      ▼
+             Google Gemini API
+                      │
+                      ▼
+               Final Response
+```
 
-The retrieved chunks are passed to Gemini along with the user question.
+---
 
-Retrieved Chunks + User Question
-→ Gemini
-→ Final grounded answer
-4. Conversational Memory
+## 📂 Project Structure
 
-The chatbot also keeps track of earlier questions and answers in the current session, so follow-up questions can be interpreted correctly.
+```
+PDF_RAG_Bot/
+│
+├── data/
+│   └── isl.pdf
+│
+├── storage/
+│   ├── faiss_index.bin
+│   └── chunks.pkl
+│
+├── src/
+│   ├── chatbot.py
+│   ├── config.py
+│   ├── ingest.py
+│   └── retriever.py
+│
+├── requirements.txt
+├── README.md
+└── .gitignore
+```
+
+---
+
+## ⚙️ Tech Stack
+
+* Python
+* PyPDF
+* LangChain Text Splitters
+* Sentence Transformers
+* FAISS
+* Google Gemini API
+* NumPy
+* python-dotenv
+
+---
+
+## 🧩 How It Works
+
+### 1. Ingestion
+
+The PDF is processed once to create a searchable knowledge base.
+
+Steps performed:
+
+* Extract text from the PDF
+* Split text into overlapping chunks
+* Generate embeddings for every chunk
+* Store embeddings inside a FAISS vector index
+* Save both the FAISS index and original chunks
+
+---
+
+### 2. Retrieval
+
+When a user asks a question:
+
+* The question is converted into an embedding.
+* FAISS performs semantic similarity search.
+* The most relevant chunks are retrieved.
+
+---
+
+### 3. Generation
+
+The retrieved chunks, along with the user's question and conversation history, are sent to Google Gemini.
+
+Gemini generates a grounded response using only the retrieved document context.
+
+---
+
+## 💬 Conversational Memory
+
+Unlike a basic RAG system that answers one question at a time, this chatbot maintains conversation history during the session.
 
 Example:
 
-Q1: What is logistic regression?
-Q2: How is it different from linear regression?
-Q3: Explain that in simple words.
+```
+User:
+What is logistic regression?
 
-This requires both:
+Bot:
+...
 
-Retrieval memory → the PDF knowledge stored in FAISS
-Conversation memory → the current session’s previous turns
+User:
+How is it different from linear regression?
+
+Bot:
+...
+
+User:
+Explain that in simple words.
+```
+
+The chatbot understands references such as **"it"**, **"that"**, and **"previous one"** by combining conversation history with retrieved document context.
+
+---
+
+## ▶️ Installation
+
+Clone the repository:
+
+```bash
+git clone <your-repository-url>
+cd PDF_RAG_Bot
+```
+
+Create a virtual environment:
+
+```bash
+python -m venv .venv
+```
+
+Activate it:
+
+Windows
+
+```bash
+.\.venv\Scripts\activate
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Create a `.env` file:
+
+```env
+GEMINI_API_KEY=YOUR_API_KEY
+```
+
+---
+
+## ▶️ Running the Project
+
+### Build the Knowledge Base
+
+```bash
+python src/ingest.py
+```
+
+This will:
+
+* Read the PDF
+* Create chunks
+* Generate embeddings
+* Build the FAISS index
+* Save the knowledge base
+
+---
+
+### Start the Chatbot
+
+```bash
+python src/chatbot.py
+```
+
+Example:
+
+```
+You:
+What is logistic regression?
+
+Bot:
+Logistic regression is a statistical learning method used for binary classification...
+```
+
+---
+
+## 📚 What I Learned
+
+This project helped me understand the complete Retrieval-Augmented Generation (RAG) pipeline, including:
+
+* PDF preprocessing
+* Text chunking with overlap
+* Embedding generation
+* Vector databases
+* Semantic similarity search
+* Prompt engineering
+* Grounded LLM responses
+* Conversational memory
+
+---
+
+## 📜 License
+
+This project is intended for educational and learning purposes.
